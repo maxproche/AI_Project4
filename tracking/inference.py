@@ -235,12 +235,6 @@ class ExactInference(InferenceModule):
             for newPos, prob in newPosDist.items():
                 b[newPos] += prob * self.beliefs[oldPos]
 
-                """
-                print "current position: ", oldPos
-                print "new position: ", newPos
-                print "probability: ", prob
-                print"""
-
         b.normalize()
         self.beliefs = b
 
