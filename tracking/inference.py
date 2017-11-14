@@ -148,14 +148,6 @@ class ExactInference(InferenceModule):
         emissionModel = busters.getObservationDistribution(noisyDistance)
         pacmanPosition = gameState.getPacmanPosition()
 
-        """allPossible = util.Counter()
-        print emissionModel[noisyDistance]
-        for p in self.legalPositions:
-            if noisyDistance == None:
-                allPossible[p] = self.getJailPosition()
-            else:
-                allPossible[p] = emissionModel[noisyDistance] * noisyDistance"""
-
         # Replace this code with a correct observation update
         # Be sure to handle the "jail" edge case where the ghost is eaten
         # and noisyDistance is None
@@ -270,7 +262,15 @@ class ParticleFilter(InferenceModule):
         Storing your particles as a Counter (where there could be an associated
         weight with each position) is incorrect and may produce errors.
         """
-        "*** YOUR CODE HERE ***"
+        numStates = len(self.legalPositions)
+        particlesPerLocation = self.numParticles/(numStates * 1.0)
+        parts = []
+        for l in self.legalPositions:
+            n = 0
+            while n < particlesPerLocation:
+                parts.append(l)
+                n+=1
+        return parts
 
     def observe(self, observation, gameState):
         """
@@ -302,8 +302,17 @@ class ParticleFilter(InferenceModule):
         noisyDistance = observation
         emissionModel = busters.getObservationDistribution(noisyDistance)
         pacmanPosition = gameState.getPacmanPosition()
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        "********************** Continue Work Here ****************************"
+        allPossible = util.Counter()
+        #print self.getJailPosition()
+        for p in self.legalPositions:
+            trueDistance = util.manhattanDistance(p, pacmanPosition)
+            if noisyDistance == None:
+                allPossible[p] = 0.0
+                allPossible[self.getJailPosition()] = 1.0
+            else:  #emissionModel[trueDistance] > 0:
+                allPossible[p] = emissionModel[trueDistance] * self.beliefs[p]
 
     def elapseTime(self, gameState):
         """
