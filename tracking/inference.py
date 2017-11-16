@@ -155,6 +155,7 @@ class ExactInference(InferenceModule):
         #print self.getJailPosition()
         for p in self.legalPositions:
             trueDistance = util.manhattanDistance(p, pacmanPosition)
+            #eating the ghost
             if noisyDistance == None:
                 allPossible[p] = 0.0
                 allPossible[self.getJailPosition()] = 1.0
@@ -242,6 +243,9 @@ class ParticleFilter(InferenceModule):
     Counter by treating its values as probabilities.
     """
 
+
+    parts = []
+
     def __init__(self, ghostAgent, numParticles=300):
         InferenceModule.__init__(self, ghostAgent);
         self.setNumParticles(numParticles)
@@ -262,15 +266,8 @@ class ParticleFilter(InferenceModule):
         Storing your particles as a Counter (where there could be an associated
         weight with each position) is incorrect and may produce errors.
         """
-        numStates = len(self.legalPositions)
-        particlesPerLocation = self.numParticles/(numStates * 1.0)
-        parts = []
         for l in self.legalPositions:
-            n = 0
-            while n < particlesPerLocation:
-                parts.append(l)
-                n+=1
-        return parts
+            self.parts.append((l,self.numParticles/len(self.legalPositions)))
 
     def observe(self, observation, gameState):
         """
@@ -299,20 +296,42 @@ class ParticleFilter(InferenceModule):
         You may also want to use util.manhattanDistance to calculate the
         distance between a particle and Pacman's position.
         """
+        print "!"*60
         noisyDistance = observation
         emissionModel = busters.getObservationDistribution(noisyDistance)
         pacmanPosition = gameState.getPacmanPosition()
-
-        "********************** Continue Work Here ****************************"
-        allPossible = util.Counter()
-        #print self.getJailPosition()
-        for p in self.legalPositions:
-            trueDistance = util.manhattanDistance(p, pacmanPosition)
+        updatedParticles = self.Counter()
+        #relocation of the particles based on previous location
+        for p in self.parts:
+            position, numP = p
+            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)):
+                updatedParticles[newPosition] += numP * probability
+        print "*"*60
+        #reweighting of particles based on sensors
+        for lP in self.legalPositions:
+            trueDistance = util.manhattanDistance(lP, pacmanPosition)
+            #eating the ghost
             if noisyDistance == None:
-                allPossible[p] = 0.0
-                allPossible[self.getJailPosition()] = 1.0
+                updatedParticles[self.getJailPosition()] = updatedParticles[lP]
+                updatedParticles[lP] = 0
             else:  #emissionModel[trueDistance] > 0:
-                allPossible[p] = emissionModel[trueDistance] * self.beliefs[p]
+                updatedParticles[lP] = emissionModel[trueDistance] * updatedParticles[lP]
+        print "-"*60
+        #changing counter to tuple
+        newParts = []
+        for loc,numberPartsUpdates in updatedParticles.items():
+            newParts.append((loc, numberPartsUpdates))
+        self.parts = newParts
+
+        print "?"*60
+        x = 0
+        particleIndicies = []
+        while x < self.numParticles:
+            particleIndicies.append(x)
+            x+=1
+
+        self.beliefs = self.getBeliefDistribution()
+        nSample(self.beliefs.values(),particleIndicies,self.numParticles)
 
     def elapseTime(self, gameState):
         """
@@ -339,7 +358,9 @@ class ParticleFilter(InferenceModule):
         Counter object)
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        self.beliefs = util.Counter()
+        for p,par in self.parts:
+            self.beliefs[p] = par/self.numParticles
 
 class MarginalInference(InferenceModule):
     """
