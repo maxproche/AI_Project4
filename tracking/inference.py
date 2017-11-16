@@ -266,6 +266,7 @@ class ParticleFilter(InferenceModule):
         Storing your particles as a Counter (where there could be an associated
         weight with each position) is incorrect and may produce errors.
         """
+        self.parts = []
         for l in self.legalPositions:
             self.parts.append((l,self.numParticles/len(self.legalPositions)))
 
@@ -296,34 +297,33 @@ class ParticleFilter(InferenceModule):
         You may also want to use util.manhattanDistance to calculate the
         distance between a particle and Pacman's position.
         """
-        print "!"*60
         noisyDistance = observation
         emissionModel = busters.getObservationDistribution(noisyDistance)
         pacmanPosition = gameState.getPacmanPosition()
-        updatedParticles = self.Counter()
-        #relocation of the particles based on previous location
-        for p in self.parts:
-            position, numP = p
-            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)):
-                updatedParticles[newPosition] += numP * probability
-        print "*"*60
+        updatedParticles = util.Counter()
+
+        self.beliefs = self.getBeliefDistribution()
+        b = self.beliefs.copy()
+
         #reweighting of particles based on sensors
         for lP in self.legalPositions:
             trueDistance = util.manhattanDistance(lP, pacmanPosition)
             #eating the ghost
             if noisyDistance == None:
-                updatedParticles[self.getJailPosition()] = updatedParticles[lP]
-                updatedParticles[lP] = 0
+                b[self.getJailPosition()] = self.beliefs[lP]
+                b[lP] = 0
             else:  #emissionModel[trueDistance] > 0:
-                updatedParticles[lP] = emissionModel[trueDistance] * updatedParticles[lP]
-        print "-"*60
+                b[lP] = emissionModel[trueDistance] * self.beliefs[lP]
+        self.beliefs = b
+
+
         #changing counter to tuple
         newParts = []
-        for loc,numberPartsUpdates in updatedParticles.items():
+        for loc,numberPartsUpdates in self.beliefs.items():
             newParts.append((loc, numberPartsUpdates))
         self.parts = newParts
 
-        print "?"*60
+
         x = 0
         particleIndicies = []
         while x < self.numParticles:
@@ -331,7 +331,17 @@ class ParticleFilter(InferenceModule):
             x+=1
 
         self.beliefs = self.getBeliefDistribution()
-        nSample(self.beliefs.values(),particleIndicies,self.numParticles)
+        buckets = util.Counter()
+        for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
+            buckets[b] += 1
+
+        count = 0
+        finalList = []
+        for l, nump in self.parts:
+            finalList.append((l, buckets[count]))
+            count += 1
+
+        self.parts = finalList
 
     def elapseTime(self, gameState):
         """
@@ -348,6 +358,12 @@ class ParticleFilter(InferenceModule):
         a belief distribution.
         """
         "*** YOUR CODE HERE ***"
+        """
+        for p in self.parts:
+            position, numP = p
+            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)):
+                updatedParticles[newPosition] += numP * probability
+        """
         util.raiseNotDefined()
 
     def getBeliefDistribution(self):
@@ -360,7 +376,9 @@ class ParticleFilter(InferenceModule):
         "*** YOUR CODE HERE ***"
         self.beliefs = util.Counter()
         for p,par in self.parts:
-            self.beliefs[p] = par/self.numParticles
+            self.beliefs[p] = par
+        self.beliefs.normalize()
+        return self.beliefs
 
 class MarginalInference(InferenceModule):
     """
