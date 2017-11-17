@@ -267,6 +267,7 @@ class ParticleFilter(InferenceModule):
         Storing your particles as a Counter (where there could be an associated
         weight with each position) is incorrect and may produce errors.
         """
+        #initialize the particle list with location, number of particles at each location
         self.parts = []
         for l in self.legalPositions:
             self.parts.append((l,self.numParticles/len(self.legalPositions)))
@@ -313,39 +314,43 @@ class ParticleFilter(InferenceModule):
             if noisyDistance == None:
                 b[self.getJailPosition()] = self.beliefs[lP]
                 b[lP] = 0
-            else:  #emissionModel[trueDistance] > 0:
+            else:
                 b[lP] = emissionModel[trueDistance] * self.beliefs[lP]
         self.beliefs = b
 
+        #check the case if all of the weights are 0 due to reweighting
         if self.beliefs.totalCount() == 0:
             self.initializeUniformly(gameState)
             self.beliefs = self.getBeliefDistribution()
 
         #changing counter to tuple
         newParts = []
-
         for loc,numberPartsUpdates in self.beliefs.items():
             newParts.append((loc, numberPartsUpdates * self.numParticles))
         self.parts = newParts
 
-        #do the resampling based on new weights
+        #***********Resampling*********************
+        #Get the possible particle indicies
         x = 0
         particleIndicies = []
         while x < self.numParticles:
             particleIndicies.append(x)
             x+=1
 
+        #resample each particle and drop them into the location, 'bucket', that
+        #corresponds to the new location after sampling
         buckets = util.Counter()
         for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
             buckets[b] += 1
 
+        #after we have the buckets (resampled locations), convert back to a
+        #particle list and reset the list
         count = 0
-        finalList = []
+        sampledList = []
         for l, nump in self.parts:
-            finalList.append((l, buckets[count]))
+            sampledList.append((l, buckets[count]))
             count += 1
-
-        self.parts = finalList
+        self.parts = sampledList
 
     def elapseTime(self, gameState):
         """
@@ -362,35 +367,46 @@ class ParticleFilter(InferenceModule):
         a belief distribution.
         """
         "*** YOUR CODE HERE ***"
+        #get/set the belief distribution
         self.beliefs = self.getBeliefDistribution()
+
+        #going to use a counter to keep track of the updated particles
         updatedParticles = util.Counter()
+
         #moving particles based on probability of ghost movement
         for p in self.parts:
             position, numP = p
-            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)).items():
+            ghostPositionDistribution = self.getPositionDistribution(self.setGhostPosition(gameState, position))
+            for newPosition, probability in ghostPositionDistribution.items():
                 updatedParticles[newPosition] += numP * probability
 
         self.beliefs = updatedParticles
         self.beliefs.normalize()
 
-        #resampling the particles based on previous location
+        #***********Resampling*********************
+        #Get the possible particle indicies
         x = 0
         particleIndicies = []
         while x < self.numParticles:
             particleIndicies.append(x)
             x+=1
 
+        #resample each particle and drop them into the location, 'bucket', that
+        #corresponds to the new location after sampling
         buckets = util.Counter()
         for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
             buckets[b] += 1
 
+        #after we have the buckets (resampled locations), convert back to a
+        #particle list and reset the list
         count = 0
-        finalList = []
+        sampledList = []
         for l, nump in self.parts:
-            finalList.append((l, buckets[count]))
+            sampledList.append((l, buckets[count]))
             count += 1
+        self.parts = sampledList
 
-        self.parts = finalList
+
         return self.beliefs
 
     def getBeliefDistribution(self):
@@ -401,6 +417,7 @@ class ParticleFilter(InferenceModule):
         Counter object)
         """
         "*** YOUR CODE HERE ***"
+        #set our beliefs based on the number of particles at each location
         beliefs = util.Counter()
         for p,par in self.parts:
             beliefs[p] = par
@@ -481,16 +498,22 @@ class JointParticleFilter:
         """
         "*** YOUR CODE HERE ***"
 
+        #because we need to shuffle the particles, use temporary list
         temporaryParticles = []
+        #thank God for itertools
         for permutation in itertools.permutations(self.legalPositions, self.numGhosts):
             temporaryParticles.append(permutation)
+        #shuffle changes temporaryParticles to a shuffled list of particles
         random.shuffle(temporaryParticles)
+
+        #moving the shuffled particles into our particle list
         i = 0
         j = 0
         self.parts = []
         while i < self.numParticles:
             self.parts.append(temporaryParticles[j])
             i+=1
+            #need to go through the list multiple times to get the right number of particles
             j = (j+1)%len(temporaryParticles)
 
     def addGhostAgent(self, agent):
@@ -539,19 +562,9 @@ class JointParticleFilter:
         emissionModels = [busters.getObservationDistribution(dist) for dist in noisyDistances]
 
         "*** YOUR CODE HERE ***"
-        #initialization if the sum of weights = 0
-        if self.beliefs.totalCount() == 0:
-            self.initializeParticles()
-            #self.beliefs = self.getBeliefDistribution()
-
-        self.beliefs = util.Counter()
-        for x in self.parts:
-            self.beliefs[x] += 1
 
         #check if ghost should be put in jail
-
         ghostsInJail = []
-
         for ghost in range(self.numGhosts):
             if noisyDistances[ghost] == None:
                 ghostsInJail.append(ghost)
@@ -560,7 +573,7 @@ class JointParticleFilter:
                     self.parts[i] = self.getParticleWithGhostInJail(oldParticle,ghost)
         self.beliefs = self.getBeliefDistribution()
 
-        #else, change regularly
+        #else, change the normal way for each ghost
         for b in self.beliefs:
             prob = 1
             for i in range(self.numGhosts):
@@ -570,25 +583,26 @@ class JointParticleFilter:
                     prob *= eM[trueDistance]
             self.beliefs[b] = prob * self.beliefs[b]
 
+        #check for sum of weights = 0 condition
         if self.beliefs.totalCount() == 0:
             self.initializeParticles()
             self.beliefs = self.getBeliefDistribution()
 
         #do the resampling based on new weights
-        #particleIndicies
+        #get the possible particle indicies
         x = 0
         particleIndicies = []
         while x < self.numParticles:
             particleIndicies.append(x)
             x+=1
 
+        #do the resampling and make the new list of particles
         finalList = []
         for k in range(self.numParticles):
             finalList.append(util.sample(self.beliefs))
-
-        self.beliefs = self.getBeliefDistribution()
-        self.beliefs.normalize()
         self.parts = finalList
+
+
         return self.parts
 
     def getParticleWithGhostInJail(self, particle, ghostIndex):
@@ -650,10 +664,13 @@ class JointParticleFilter:
             # now loop through and update each entry in newParticle...
 
             "*** YOUR CODE HERE ***"
+            #need the new list of tuple-tuples
             tups = []
+            #for each ghost, get the position distribution
             for i in range(self.numGhosts):
                 newPosDist = getPositionDistributionForGhost(
                    setGhostPositions(gameState, newParticle), i, self.ghostAgents[i])
+                #sample using the position distribution
                 tups.append(util.sample(newPosDist))
             newParticle = tups
 
@@ -663,6 +680,7 @@ class JointParticleFilter:
 
     def getBeliefDistribution(self):
         "*** YOUR CODE HERE ***"
+        #add 1 for each location pair, then normalize to get beliefs
         self.beliefs = util.Counter()
         for tuples in self.parts:
             self.beliefs[tuples] += 1
