@@ -337,7 +337,6 @@ class ParticleFilter(InferenceModule):
             x+=1
 
         buckets = util.Counter()
-        print self.beliefs.values()
         for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
             buckets[b] += 1
 
@@ -364,13 +363,37 @@ class ParticleFilter(InferenceModule):
         a belief distribution.
         """
         "*** YOUR CODE HERE ***"
-        """
+        self.beliefs = self.getBeliefDistribution()
+        updatedParticles = util.Counter()
+
         for p in self.parts:
             position, numP = p
-            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)):
+            for newPosition, probability in self.getPositionDistribution(self.setGhostPosition(gameState, position)).items():
                 updatedParticles[newPosition] += numP * probability
-        """
-        util.raiseNotDefined()
+
+        self.beliefs = updatedParticles
+        self.beliefs.normalize()
+
+
+        x = 0
+        particleIndicies = []
+        while x < self.numParticles:
+            particleIndicies.append(x)
+            x+=1
+        
+        buckets = util.Counter()
+        for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
+            buckets[b] += 1
+
+        count = 0
+        finalList = []
+        for l, nump in self.parts:
+            finalList.append((l, buckets[count]))
+            count += 1
+
+        self.parts = finalList
+
+        return self.beliefs
 
     def getBeliefDistribution(self):
         """
