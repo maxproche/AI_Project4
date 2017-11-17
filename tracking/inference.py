@@ -267,6 +267,7 @@ class ParticleFilter(InferenceModule):
         Storing your particles as a Counter (where there could be an associated
         weight with each position) is incorrect and may produce errors.
         """
+        self.parts = []
         for l in self.legalPositions:
             self.parts.append((l,self.numParticles/len(self.legalPositions)))
 
