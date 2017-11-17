@@ -245,6 +245,7 @@ class ParticleFilter(InferenceModule):
 
 
     parts = []
+    beliefs = util.Counter()
 
     def __init__(self, ghostAgent, numParticles=300):
         InferenceModule.__init__(self, ghostAgent);
@@ -305,6 +306,7 @@ class ParticleFilter(InferenceModule):
         self.beliefs = self.getBeliefDistribution()
         b = self.beliefs.copy()
 
+
         #reweighting of particles based on sensors
         for lP in self.legalPositions:
             trueDistance = util.manhattanDistance(lP, pacmanPosition)
@@ -316,14 +318,16 @@ class ParticleFilter(InferenceModule):
                 b[lP] = emissionModel[trueDistance] * self.beliefs[lP]
         self.beliefs = b
 
+        if self.beliefs.totalCount() == 0:
+            self.initializeUniformly(gameState)
 
         #changing counter to tuple
         newParts = []
         for loc,numberPartsUpdates in self.beliefs.items():
-            newParts.append((loc, numberPartsUpdates))
+            newParts.append((loc, numberPartsUpdates * self.numParticles))
         self.parts = newParts
 
-
+        #do the resampling based on new weights
         x = 0
         particleIndicies = []
         while x < self.numParticles:
@@ -374,7 +378,6 @@ class ParticleFilter(InferenceModule):
         Counter object)
         """
         "*** YOUR CODE HERE ***"
-        self.beliefs = util.Counter()
         for p,par in self.parts:
             self.beliefs[p] = par
         self.beliefs.normalize()
