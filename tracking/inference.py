@@ -320,9 +320,11 @@ class ParticleFilter(InferenceModule):
 
         if self.beliefs.totalCount() == 0:
             self.initializeUniformly(gameState)
+            self.beliefs = self.getBeliefDistribution()
 
         #changing counter to tuple
         newParts = []
+
         for loc,numberPartsUpdates in self.beliefs.items():
             newParts.append((loc, numberPartsUpdates * self.numParticles))
         self.parts = newParts
@@ -334,8 +336,8 @@ class ParticleFilter(InferenceModule):
             particleIndicies.append(x)
             x+=1
 
-        self.beliefs = self.getBeliefDistribution()
         buckets = util.Counter()
+        print self.beliefs.values()
         for b in util.nSample(self.beliefs.values(),particleIndicies,self.numParticles):
             buckets[b] += 1
 
@@ -378,10 +380,11 @@ class ParticleFilter(InferenceModule):
         Counter object)
         """
         "*** YOUR CODE HERE ***"
+        beliefs = util.Counter()
         for p,par in self.parts:
-            self.beliefs[p] = par
-        self.beliefs.normalize()
-        return self.beliefs
+            beliefs[p] = par
+        beliefs.normalize()
+        return beliefs
 
 class MarginalInference(InferenceModule):
     """
