@@ -390,7 +390,6 @@ class ParticleFilter(InferenceModule):
             count += 1
 
         self.parts = finalList
-
         return self.beliefs
 
     def getBeliefDistribution(self):
@@ -442,9 +441,8 @@ class JointParticleFilter:
     JointParticleFilter tracks a joint distribution over tuples of all ghost
     positions.
     """
-    parts = []
-    beliefs = util.Counter()
-    ghostsInJail = []
+
+
 
     def __init__(self, numParticles=600):
         self.setNumParticles(numParticles)
@@ -488,6 +486,7 @@ class JointParticleFilter:
         random.shuffle(temporaryParticles)
         i = 0
         j = 0
+        self.parts = []
         while i < self.numParticles:
             self.parts.append(temporaryParticles[j])
             i+=1
@@ -542,28 +541,54 @@ class JointParticleFilter:
         #initialization if the sum of weights = 0
         if self.beliefs.totalCount() == 0:
             self.initializeParticles()
-            self.beliefs = self.getBeliefDistribution()
+            #self.beliefs = self.getBeliefDistribution()
+
+        self.beliefs = util.Counter()
+        for x in self.parts:
+            self.beliefs[x] += 1
 
         #check if ghost should be put in jail
+
+        ghostsInJail = []
+
         for ghost in range(self.numGhosts):
             if noisyDistances[ghost] == None:
-                self.ghostsInJail.append(ghost)
+                ghostsInJail.append(ghost)
                 for i in range(self.numParticles):
                     oldParticle = self.parts[i]
-                    self.parts[i] = self.getParticleWithGhostInJail(oldParticle,i)
+                    self.parts[i] = self.getParticleWithGhostInJail(oldParticle,ghost)
         self.beliefs = self.getBeliefDistribution()
 
         #else, change regularly
         for b in self.beliefs:
             prob = 1
             for i in range(self.numGhosts):
-                eM = emissionModels[i]
-                trueDistance = util.manhattanDistance(b[i], pacmanPosition)
-                prob *= eM[trueDistance]
+                if i not in ghostsInJail:
+                    eM = emissionModels[i]
+                    trueDistance = util.manhattanDistance(b[i], pacmanPosition)
+                    prob *= eM[trueDistance]
             self.beliefs[b] = prob * self.beliefs[b]
 
-        #sample!
+        if self.beliefs.totalCount() == 0:
+            self.initializeParticles()
+            self.beliefs = self.getBeliefDistribution()
 
+        #do the resampling based on new weights
+        #particleIndicies
+        x = 0
+        particleIndicies = []
+        while x < self.numParticles:
+            particleIndicies.append(x)
+            x+=1
+
+        finalList = []
+        for k in range(self.numParticles):
+            finalList.append(util.sample(self.beliefs))
+
+        self.beliefs = self.getBeliefDistribution()
+        self.beliefs.normalize()
+        self.parts = finalList
+        return self.parts
 
     def getParticleWithGhostInJail(self, particle, ghostIndex):
         """
@@ -631,12 +656,12 @@ class JointParticleFilter:
 
     def getBeliefDistribution(self):
         "*** YOUR CODE HERE ***"
-        beliefs = util.Counter()
+        self.beliefs = util.Counter()
         for tuples in self.parts:
-            beliefs[tuples] += 1
+            self.beliefs[tuples] += 1
 
-        beliefs.normalize()
-        return beliefs
+        self.beliefs.normalize()
+        return self.beliefs
 
 # One JointInference module is shared globally across instances of MarginalInference
 jointInference = JointParticleFilter()
